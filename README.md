@@ -7,16 +7,14 @@ El reporte se encuentra en [aqui](https://github.com/DanielRasho/redes-lab2/blob
 
 # Ejecución
 
-## Viterbi
-Ejecutar estos comandos dentro de la carpeta `./Viterbi`
-```sh
-python viterbi.py
-lua decoder.lua
+## Emisor
+```bash
+python ./Emisor/main.py
 ```
 
-## CRC-32
-Ejecutar estos comandos dentro de la carpeta `./CRC-32`
-```sh
-python emisor.py
-go run receptor.go
+## Receptor
+Ejecutar estos comandos dentro de la carpeta `./Receptor`
+```bash
+go run . viterbi    # Runs server using viterbi
+go run . crc32      # Runs server using crc32
 ```
