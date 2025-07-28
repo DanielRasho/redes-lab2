@@ -1,35 +1,20 @@
 from crc32 import crc32_generate_message
 from viterbi import ConvolutionalEncoder
 import random
+import socket
+import struct
 
-def add_noise(bits, noise_rate):
-    '''
-        Return a new array with the final value
-    '''
-    final = []
-    for s in range(bits):
-        result = ""
-        for bit in s:
-            if random.random() < noise_rate:
-                # Flip the bit
-                flipped_bit = '1' if bit == '0' else '0'
-                result.append(flipped_bit)
-            else:
-                result.append(bit)
-        final.append(''.join(result))
-    return final
+HOST = "localhost"
+PORT = 8081
 
-def text_to_bits(str):
-    '''
-        Return an array of bits
-    '''
-    final = []
-    final.append(format(len(str), '08b'))
-    for c in str:
-        final.append(format(ord(c), '08b'))
-    
-    return final
 
+#########################
+# UTILITIES
+#########################
+
+def text_to_binary(text):
+    """Convert text to binary representation"""
+    return ''.join(format(ord(char), '08b') for char in text)
 
 def apply_algorithm(bit_str: str, algorithm: str = "") -> str:
     """
@@ -70,26 +55,80 @@ def add_noise(bit_str: str, noise_rate: float) -> str:
             result.append(b)
     return "".join(result)
 
+##########################
+#   SOCKETS
+##########################
+
+def send_message(sock, message):
+    """Send a message with length prefix"""
+    # Encode the message
+    message_bytes = message.encode('utf-8')
+    # Pack the length as a 4-byte integer (network byte order)
+    length_prefix = struct.pack('!I', len(message_bytes))
+    # Send length first, then message
+    sock.sendall(length_prefix + message_bytes)
+
+def recv_message(sock):
+    """Receive a message with length prefix"""
+    # First, receive the 4-byte length prefix
+    length_bytes = recv_all(sock, 4)
+    if not length_bytes:
+        return None
+    
+    # Unpack the length
+    message_length = struct.unpack('!I', length_bytes)[0]
+    
+    # Now receive the actual message
+    message_bytes = recv_all(sock, message_length)
+    return message_bytes.decode('utf-8')
+
+def recv_all(sock, length):
+    """Helper function to receive exactly 'length' bytes"""
+    data = b''
+    while len(data) < length:
+        chunk = sock.recv(length - len(data))
+        if not chunk:
+            raise ConnectionError("Socket closed unexpectedly")
+        data += chunk
+    return data
+
+##########################
+#   MAIN
+##########################
+
 if __name__ == "__main__":
 
-    uwu = text_to_bits("helloWorld")
-    print(uwu)
-    print(add_noise(uwu, 0.5))
-
-    text      = input("Ingresar mensaje ASCII: ")
-    algorithm = input("Seleccionar algoritmo (crc32/viterbi): ")
-
-    bit_stream = text_to_bits(text)
-    framed     = apply_algorithm(bit_stream, algorithm)
-    print("Trama con integridad/codificación:", framed)
+    option = input("Seleccionar algoritmo crc32 (0) viterbi (1): ")
+    algorithm = ""
+    
+    if option == "0" :
+        algorithm = "crc32"
+    elif option == "1":
+        algorithm = "viterbi"
+    else:
+        print("Invalid option.")
+        exit(1)
 
     raw_rate    = input("Ingrese la tasa de error (ej. '4/100' o '0.04'): ")
     noise_rate  = parse_error_rate(raw_rate)
-    print(f"Aplicando tasa de error de {noise_rate:.2%}")
 
-    noisy_frame = add_noise(framed, noise_rate)
-    print("Trama con ruido           :", noisy_frame)
+    while True :
+        text = input("Ingresar mensaje ASCII: ")
+        binary_msg = text_to_binary(text)
+        print("Binary message:", binary_msg)
+        encoded = apply_algorithm(binary_msg, algorithm)
+        print(f"Encoded message with {algorithm}:", encoded)
+        final_msg = add_noise(encoded, noise_rate)
+        print(f"Message after applying noise rate of {noise_rate}:", final_msg)
 
-    errors       = sum(a != b for a, b in zip(framed, noisy_frame))
-    ber_measured = errors / len(framed)
-    print(f"Tasa de error medida (BER): {ber_measured:.2%}")
+        client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        client_socket.connect((HOST, PORT))
+
+        print(f"Sending message of length: {len(final_msg)}")
+        send_message(client_socket, final_msg)
+
+        # Receive response
+        response = recv_message(client_socket)
+        print(f"Received response: {response[:50]}...")  # Show first 50 chars
+        
+        client_socket.close()

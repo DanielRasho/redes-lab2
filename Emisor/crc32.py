@@ -15,6 +15,7 @@ def crc32_generate_message(binary_str: str, poly: str = "10000010011000001000111
     full_msg = binary_str + crc
     return full_msg
 
-message = input("Enter a binary number:")
-msg_with_crc = crc32_generate_message(message)
-print("Message with CRC-32:", msg_with_crc)
+if __name__ == "__main__":
+    message = input("Enter a binary number:")
+    msg_with_crc = crc32_generate_message(message)
+    print("Message with CRC-32:", msg_with_crc)
