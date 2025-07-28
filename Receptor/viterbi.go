@@ -26,18 +26,25 @@ Attempts to decodes a binary string encoded with viterbi
 	error	object returning possible error encountered in the message received
 */
 func checkViterbi(input string) error {
-	// Leer secuencia recibida
+	// 1. Leer secuencia recibida
 	received := readEncodedSequence(input)
 	fmt.Printf("Received %d bits.\n", len(received))
 
-	// Parámetros del código convolucional
+	// 2. Generadores y comprobación de longitud
 	generators := []int{0x7, 0x5} // polinomios generadores
+	if len(received)%len(generators) != 0 {
+		return fmt.Errorf(
+			"invalid input length: expected a multiple of %d bits, got %d",
+			len(generators), len(received),
+		)
+	}
+
+	// 3. Parámetros del código convolucional
 	memory := 2
 	numStates := 1 << memory
-	// INF más grande que cualquier métrica posible
 	INF := len(received) + 1
 
-	// Inicialización de métricas de camino y sobrevivientes
+	// 4. Inicialización de métricas y caminos sobrevivientes
 	pathMetrics := make([]int, numStates)
 	survivors := make([][]int, numStates)
 	for s := 0; s < numStates; s++ {
@@ -49,15 +56,13 @@ func checkViterbi(input string) error {
 		survivors[s] = []int{}
 	}
 
-	// Recorrer la secuencia de dos en dos (len(generators)=2)
+	// 5. Viterbi paso a paso
 	for i := 0; i < len(received); i += len(generators) {
-		// Observaciones en este paso
 		obs := make([]int, len(generators))
 		for j := range generators {
 			obs[j] = received[i+j]
 		}
 
-		// Preparar las estructuras para el siguiente paso
 		nextMetrics := make([]int, numStates)
 		nextSurvivors := make([][]int, numStates)
 		for s := 0; s < numStates; s++ {
@@ -65,20 +70,17 @@ func checkViterbi(input string) error {
 			nextSurvivors[s] = []int{}
 		}
 
-		// Para cada estado actual
 		for s := 0; s < numStates; s++ {
 			pm := pathMetrics[s]
 			if pm < INF {
-				// Para cada posible bit de entrada (0 o 1)
 				for ib := 0; ib <= 1; ib++ {
-					// Construir el registro de desplazamiento [ib, memoria bits...]
+					// Construir registro de desplazamiento
 					sr := make([]int, memory+1)
 					sr[0] = ib
 					for k := 0; k < memory; k++ {
 						sr[k+1] = (s >> (memory - 1 - k)) & 1
 					}
-
-					// Calcular bits esperados según los generadores
+					// Salida esperada
 					exp := make([]int, len(generators))
 					for gi, g := range generators {
 						x := 0
@@ -89,23 +91,18 @@ func checkViterbi(input string) error {
 						}
 						exp[gi] = x
 					}
-
-					// Calcular distancia de Hamming (número de diferencias)
+					// Distancia de Hamming
 					d := 0
 					for k := range exp {
 						if exp[k] != obs[k] {
 							d++
 						}
 					}
-
-					// Estado siguiente y nueva métrica
+					// Estado siguiente y métrica acumulada
 					ns := (s >> 1) | (ib << (memory - 1))
 					nm := pm + d
-
-					// Actualizar métrica y camino si es mejor
 					if nm < nextMetrics[ns] {
 						nextMetrics[ns] = nm
-						// Copiar camino sobreviviente y agregar ib
 						nextSurvivors[ns] = append([]int(nil), survivors[s]...)
 						nextSurvivors[ns] = append(nextSurvivors[ns], ib)
 					}
@@ -113,12 +110,11 @@ func checkViterbi(input string) error {
 			}
 		}
 
-		// Avanzar al siguiente paso
 		pathMetrics = nextMetrics
 		survivors = nextSurvivors
 	}
 
-	// Encontrar el estado final con métrica mínima
+	// 6. Elegir el mejor estado final
 	bestState := 0
 	bestMetric := pathMetrics[0]
 	for s := 1; s < numStates; s++ {
@@ -128,7 +124,7 @@ func checkViterbi(input string) error {
 		}
 	}
 
-	// Recuperar y mostrar la secuencia decodificada
+	// 7. Mostrar secuencia decodificada
 	decoded := survivors[bestState]
 	fmt.Print("Decoded sequence: ")
 	for _, b := range decoded {
@@ -136,5 +132,9 @@ func checkViterbi(input string) error {
 	}
 	fmt.Println()
 
+	// 8. Devolver error si hubo discrepancias en la decodificación
+	if bestMetric > 0 {
+		return fmt.Errorf("sequence corrupted: detected %d bit errors", bestMetric)
+	}
 	return nil
 }
