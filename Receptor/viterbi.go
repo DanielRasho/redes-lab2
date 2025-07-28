@@ -16,7 +16,16 @@ func readEncodedSequence(input string) []int {
 	return bits
 }
 
-func checkViterbi(input string) {
+// TODO: Return descriptive error messages where input has been corrupted
+// through the error object.
+
+/*
+Attempts to decodes a binary string encoded with viterbi
+
+	input	binary string (ex: "10000010101") encoded with viterbi
+	error	object returning possible error encountered in the message received
+*/
+func checkViterbi(input string) error {
 	// Leer secuencia recibida
 	received := readEncodedSequence(input)
 	fmt.Printf("Received %d bits.\n", len(received))
@@ -126,4 +135,6 @@ func checkViterbi(input string) {
 		fmt.Print(b)
 	}
 	fmt.Println()
+
+	return nil
 }
