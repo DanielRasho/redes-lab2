@@ -93,12 +93,14 @@ func decodeWithAlgorithm(input string, algorithm int) string {
 	switch algorithm {
 	case VITERBI_ALG:
 		if err := checkViterbi(input); err != nil {
+			// err.Error() ya es "sequence corrupted: detected N bit errors at positions [..]"
+			response = fmt.Sprintf("❌ %s", err.Error())
 			fmt.Println(err)
-			response = "❌ Error detected in the message."
+			fmt.Println("\t" + response)
+		} else {
+			response = "✅ No error detected in the message."
 			fmt.Println("\t" + response)
 		}
-		response = "✅ No error detected in the message."
-		fmt.Println("\t" + response)
 	case CRC32_ALG:
 		if checkCRC32(input) {
 			response = "✅ No error detected in the message."

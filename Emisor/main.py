@@ -129,6 +129,6 @@ if __name__ == "__main__":
 
         # Receive response
         response = recv_message(client_socket)
-        print(f"Received response: {response[:50]}...")  # Show first 50 chars
+        print(f"Received response: {response}") # Show chars
         
         client_socket.close()
