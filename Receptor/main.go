@@ -87,32 +87,78 @@ func handleConnection(conn net.Conn, algorithm int) {
 	fmt.Printf("\nConnection closed: %s\n\n", conn.RemoteAddr())
 }
 
+// decodeWithAlgorithm aplica el algoritmo indicado ('viterbi' o 'crc32')
+// a la entrada binaria y construye la respuesta que se enviará al cliente.
 func decodeWithAlgorithm(input string, algorithm int) string {
-	response := ""
+	var response string
 
 	switch algorithm {
 	case VITERBI_ALG:
-		if err := checkViterbi(input); err != nil {
-			// err.Error() ya es "sequence corrupted: detected N bit errors at positions [..]"
-			response = fmt.Sprintf("❌ %s", err.Error())
-			fmt.Println(err)
-			fmt.Println("\t" + response)
-		} else {
-			response = "✅ No error detected in the message."
-			fmt.Println("\t" + response)
+		// checkViterbi devuelve:
+		// - decoded: slice de bits corregidos
+		// - errPos: posiciones donde hubo discrepancias
+		// - vErr: error si bestMetric>0
+		decoded, errPos, vErr := checkViterbi(input)
+
+		// 1) Convertir decoded ([]int) a cadena de '0'/'1'
+		decBits := ""
+		for _, b := range decoded {
+			decBits += strconv.Itoa(b)
 		}
+
+		// 2) Intentar traducir esos bits corregidos a texto ASCII
+		decodedText, txtErr := binaryToText(decBits)
+
+		if vErr != nil {
+			// Hubo errores: incluimos conteo, posiciones, bits corregidos y texto resultante
+			if txtErr == nil {
+				response = fmt.Sprintf(
+					"%s; corrected to bits %s -> \"%s\"; error positions %v",
+					vErr.Error(), decBits, decodedText, errPos,
+				)
+			} else {
+				response = fmt.Sprintf(
+					"%s; corrected to bits %s; error positions %v",
+					vErr.Error(), decBits, errPos,
+				)
+			}
+			fmt.Println(vErr)
+			fmt.Printf("\t Corrected bits: %s\n", decBits)
+			if txtErr == nil {
+				fmt.Printf("\t Decoded text: \"%s\"\n", decodedText)
+			}
+			fmt.Printf("\t Error positions: %v\n", errPos)
+		} else {
+			// Sin errores: mostramos bits y texto
+			if txtErr == nil {
+				response = fmt.Sprintf(
+					"No error detected; decoded bits %s -> \"%s\"",
+					decBits, decodedText,
+				)
+			} else {
+				response = fmt.Sprintf(
+					" No error detected; decoded bits %s",
+					decBits,
+				)
+			}
+			fmt.Printf("\t %s\n", response)
+		}
+
 	case CRC32_ALG:
 		if checkCRC32(input) {
-			response = "✅ No error detected in the message."
-			fmt.Println("\t" + response)
-			decoded, err := binaryToText(input[:len(input)-32])
-			if err != nil {
-				fmt.Println(err.Error())
+			// Quitar los 32 bits de CRC al final
+			dataBits := input[:len(input)-32]
+			decodedText, err := binaryToText(dataBits)
+			if err == nil {
+				response = fmt.Sprintf("No error detected; decoded: %s", decodedText)
+			} else {
+				response = "No error detected in the message."
+				fmt.Println(err)
 			}
-			fmt.Printf("\t Decoded msg: %s\n", decoded)
+			fmt.Printf("\t %s\n", response)
 		} else {
-			response = "❌ Error detected in the message."
-			fmt.Println("\t" + response)
+			response = "Error detected in the message."
+			fmt.Printf("\t %s\n", response)
 		}
 	}
 
